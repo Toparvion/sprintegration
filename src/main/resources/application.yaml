@@ -2,6 +2,10 @@ blog:
   url: https://spring.io/blog/category/engineering.atom
   pollPeriodSec: 10
 
+twitter:
+  search:
+    exclusions: tips
+
 logging:
   level:
     root: INFO
