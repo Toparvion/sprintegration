@@ -8,7 +8,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.feed.dsl.Feed;
+import org.springframework.integration.twitter.outbound.TwitterSearchOutboundGateway;
 import org.springframework.messaging.Message;
+import org.springframework.social.twitter.api.SearchParameters;
+import org.springframework.social.twitter.api.Tweet;
+import org.springframework.social.twitter.api.impl.TwitterTemplate;
 
 import java.net.URL;
 import java.util.HashMap;
@@ -38,20 +42,39 @@ public class MainFlowConfig {
   private URL springBlogFeedUrl;
   @Value("${blog.pollPeriodSec:45}")
   private long pollPeriod;
+  @Value("${twitter.search.fetch-max:10}")
+  private int maxTweets;
   @Value("${twitter.search.exclusions}")
   private List<String> exclusions;
 
   @Bean
-  public IntegrationFlow mainFlow() {
+  public IntegrationFlow mainFlow(TwitterTemplate twitterTemplate) {
     return from(Feed.inboundAdapter(springBlogFeedUrl, "blog"),
                 conf -> conf.poller(fixedRate(pollPeriod, SECONDS)))            // cron("*/30 * * * * ?")
         .log(MainFlowConfig::composeSyndEntryLogString)
-        // .transform(entry -> entry.getContents().get(0).getValue())
         .split("payload.contents")
         .transform(SyndContent::getValue)                                   // то же, что и .transform("payload.value")
         .transform(this::findMostMentionedProject)
-        .log(Message::getPayload)
+        .transform(this::prepareTwitterSearchParams)
+        .handle(new TwitterSearchOutboundGateway(twitterTemplate))
+        .split()
+        .<Tweet>log(message -> String.format("Автор: %s, дата: %s, текст: %s", message.getPayload().getUser().getName(),
+            message.getPayload().getCreatedAt(), message.getPayload().getUnmodifiedText()))
         .get();
+  }
+
+  @Bean
+  public TwitterTemplate twitterTemplate(@Value("${twitter.consumer.key}") String twitterConsumerKey,
+                                         @Value("${twitter.consumer.secret}") String twitterConsumerSecret) {
+    return new TwitterTemplate(twitterConsumerKey, twitterConsumerSecret);
+  }
+
+  private SearchParameters prepareTwitterSearchParams(String mostMentionedProject) {
+    SearchParameters searchParameters = new SearchParameters("#Spring" + mostMentionedProject)
+        .count(maxTweets)
+        .lang("en");
+    log.info("Запрашиваю последние {} твитов по теме: {}", searchParameters.getCount(), searchParameters.getQuery());
+    return searchParameters;
   }
 
   private String findMostMentionedProject(String feedEntryContent) {
@@ -68,11 +91,13 @@ public class MainFlowConfig {
     }
     log.info("Индекс упоминаемых проектов: {}", hypeIndex);
     // определяем самый часто упоминаемый из них
-    return hypeIndex.entrySet()
+    String mostMentionedProject = hypeIndex.entrySet()
         .stream()
         .max(comparingInt(Map.Entry::getValue))
         .map(Map.Entry::getKey)
         .orElseThrow(() -> new IllegalArgumentException("Ни одного упоминания проектов Spring не найдено"));
+    log.info("Самый упоминаемый проект: {}", mostMentionedProject);
+    return mostMentionedProject;
   }
 
 
