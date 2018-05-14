@@ -8,11 +8,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.feed.dsl.Feed;
+import org.springframework.integration.jdbc.BeanPropertySqlParameterSourceFactory;
+import org.springframework.integration.jdbc.JdbcMessageHandler;
 import org.springframework.integration.twitter.outbound.TwitterSearchOutboundGateway;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.messaging.Message;
 import org.springframework.social.twitter.api.SearchParameters;
-import org.springframework.social.twitter.api.Tweet;
 import org.springframework.social.twitter.api.impl.TwitterTemplate;
+import tech.toparvion.sample.sprintegration.model.DemoTweet;
 
 import java.net.URL;
 import java.util.HashMap;
@@ -48,7 +51,8 @@ public class MainFlowConfig {
   private List<String> exclusions;
 
   @Bean
-  public IntegrationFlow mainFlow(TwitterTemplate twitterTemplate) {
+  public IntegrationFlow mainFlow(TwitterTemplate twitterTemplate,
+                                  JdbcMessageHandler dbSaver) {
     return from(Feed.inboundAdapter(springBlogFeedUrl, "blog"),
                 conf -> conf.poller(fixedRate(pollPeriod, SECONDS)))            // cron("*/30 * * * * ?")
         .log(MainFlowConfig::composeSyndEntryLogString)
@@ -58,8 +62,9 @@ public class MainFlowConfig {
         .transform(this::prepareTwitterSearchParams)
         .handle(new TwitterSearchOutboundGateway(twitterTemplate))
         .split()
-        .<Tweet>log(message -> String.format("Автор: %s, дата: %s, текст: %s", message.getPayload().getUser().getName(),
-            message.getPayload().getCreatedAt(), message.getPayload().getUnmodifiedText()))
+        .transform(DemoTweet::new)
+        .log(MainFlowConfig::composeDemoTweetLogString)
+        .handle(dbSaver)
         .get();
   }
 
@@ -67,6 +72,14 @@ public class MainFlowConfig {
   public TwitterTemplate twitterTemplate(@Value("${twitter.consumer.key}") String twitterConsumerKey,
                                          @Value("${twitter.consumer.secret}") String twitterConsumerSecret) {
     return new TwitterTemplate(twitterConsumerKey, twitterConsumerSecret);
+  }
+
+  @Bean
+  public JdbcMessageHandler dbSaver(JdbcTemplate jdbcTemplate) {
+    String sql = "MERGE INTO TWEET VALUES (:payload.id, :payload.author, :payload.created, :payload.tags, :payload.text)";
+    JdbcMessageHandler jdbcMessageHandler = new JdbcMessageHandler(jdbcTemplate, sql);
+    jdbcMessageHandler.setSqlParameterSourceFactory(new BeanPropertySqlParameterSourceFactory());
+    return jdbcMessageHandler;
   }
 
   private SearchParameters prepareTwitterSearchParams(String mostMentionedProject) {
@@ -100,10 +113,15 @@ public class MainFlowConfig {
     return mostMentionedProject;
   }
 
-
   private static String composeSyndEntryLogString(Message<SyndEntry> message) {
     return format("Новая запись в блоге:\n Заголовок: %s\n Автор: %s\n Дата: %s", message.getPayload().getTitle(),
         message.getPayload().getAuthor(), message.getPayload().getUpdatedDate());
+  }
+
+  private static String composeDemoTweetLogString(Message<DemoTweet> message) {
+    DemoTweet tweet = message.getPayload();
+    return format("Твит id=%s\nСоздан: %s\nАвтор: %s\nТэги: %s\nРетвит: %s\nПолный текст: %s", tweet.getId(),
+        tweet.getCreated(), tweet.getAuthor(), tweet.getTags(), tweet.isRetweet(), tweet.getText());
   }
 
 }
