@@ -26,10 +26,18 @@ repositories {
 
 
 dependencies {
-    compile('org.springframework.boot:spring-boot-starter-actuator')
+    // main deps
     compile('org.springframework.boot:spring-boot-starter-integration')
     compile("org.springframework.integration:spring-integration-feed:${springIntegrationVersion}")
-    runtime('com.h2database:h2')
+    compile("org.springframework.integration:spring-integration-twitter:${springIntegrationVersion}")
+    compile("org.springframework.integration:spring-integration-jdbc:${springIntegrationVersion}")
+    compile("org.springframework.integration:spring-integration-file:${springIntegrationVersion}")
+    // aux deps
+    compile('org.springframework.boot:spring-boot-starter-actuator')
+    compile('org.springframework.boot:spring-boot-starter-web')
     compileOnly('org.projectlombok:lombok')
+
+    runtime('com.h2database:h2')
+
     testCompile('org.springframework.boot:spring-boot-starter-test')
 }

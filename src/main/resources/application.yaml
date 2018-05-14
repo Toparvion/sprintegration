@@ -1,0 +1,22 @@
+blog:
+  url: https://spring.io/blog/category/engineering.atom
+  schedule: 30
+twitter:
+  consumer:
+    key: Obq8enorM0vUMaJVSI1T3Ko7j
+    secret: p4jNizeMuX1i6XpiwvJ075qckyDIRx9r2Md9bLJwa7gmlpNrYY
+  search:
+    fetch-max: 15
+    exclusions: tips
+
+logging:
+  level:
+    root: INFO
+    org.springframework.social: debug
+spring:
+  h2:
+    console:
+      enabled: true
+  integration:
+    jdbc:
+      initialize-schema: never
