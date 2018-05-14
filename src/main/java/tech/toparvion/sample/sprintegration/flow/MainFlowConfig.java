@@ -7,7 +7,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.dsl.IntegrationFlow;
+import org.springframework.integration.dsl.Transformers;
 import org.springframework.integration.feed.dsl.Feed;
+import org.springframework.integration.file.dsl.FileWritingMessageHandlerSpec;
+import org.springframework.integration.file.dsl.Files;
 import org.springframework.integration.jdbc.BeanPropertySqlParameterSourceFactory;
 import org.springframework.integration.jdbc.JdbcMessageHandler;
 import org.springframework.integration.twitter.outbound.TwitterSearchOutboundGateway;
@@ -17,6 +20,7 @@ import org.springframework.social.twitter.api.SearchParameters;
 import org.springframework.social.twitter.api.impl.TwitterTemplate;
 import tech.toparvion.sample.sprintegration.model.DemoTweet;
 
+import java.io.File;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +33,7 @@ import static java.util.Comparator.comparingInt;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.springframework.integration.dsl.IntegrationFlows.from;
 import static org.springframework.integration.dsl.Pollers.fixedRate;
+import static org.springframework.integration.file.support.FileExistsMode.APPEND;
 
 /**
  * Основной (и единственный) интгерационный конвейер микросервиса со всеми запчастями
@@ -40,6 +45,7 @@ import static org.springframework.integration.dsl.Pollers.fixedRate;
 @Slf4j
 public class MainFlowConfig {
   private static final Pattern SPRING_PROJECT_PATTERN = Pattern.compile("Spring\\s+([A-Z][a-z]+)");
+  private static final String TAG_HEADER = "tag";
 
   @Value("${blog.url}")
   private URL springBlogFeedUrl;
@@ -52,19 +58,24 @@ public class MainFlowConfig {
 
   @Bean
   public IntegrationFlow mainFlow(TwitterTemplate twitterTemplate,
-                                  JdbcMessageHandler dbSaver) {
+                                  JdbcMessageHandler dbSaver,
+                                  FileWritingMessageHandlerSpec fileSaver) {
     return from(Feed.inboundAdapter(springBlogFeedUrl, "blog"),
                 conf -> conf.poller(fixedRate(pollPeriod, SECONDS)))            // cron("*/30 * * * * ?")
         .log(MainFlowConfig::composeSyndEntryLogString)
         .split("payload.contents")
         .transform(SyndContent::getValue)                                   // то же, что и .transform("payload.value")
         .transform(this::findMostMentionedProject)
+        .enrichHeaders(h -> h.headerExpression(TAG_HEADER, "payload.toLowerCase()"))
         .transform(this::prepareTwitterSearchParams)
         .handle(new TwitterSearchOutboundGateway(twitterTemplate))
         .split()
         .transform(DemoTweet::new)
         .log(MainFlowConfig::composeDemoTweetLogString)
-        .handle(dbSaver)
+        .route("payload.retweet", spec -> spec
+            .subFlowMapping(false, f -> f.handle(dbSaver))
+            .subFlowMapping(true, f -> f.transform(Transformers.toJson())
+                                             .handle(fileSaver)))
         .get();
   }
 
@@ -80,6 +91,14 @@ public class MainFlowConfig {
     JdbcMessageHandler jdbcMessageHandler = new JdbcMessageHandler(jdbcTemplate, sql);
     jdbcMessageHandler.setSqlParameterSourceFactory(new BeanPropertySqlParameterSourceFactory());
     return jdbcMessageHandler;
+  }
+
+  @Bean
+  public FileWritingMessageHandlerSpec fileSaver() {
+    return Files.outboundAdapter(new File("work/retweets"))
+                .appendNewLine(true)
+                .fileExistsMode(APPEND)
+                .fileNameExpression("headers[" + TAG_HEADER + "].concat('.txt')");
   }
 
   private SearchParameters prepareTwitterSearchParams(String mostMentionedProject) {

@@ -31,6 +31,7 @@ dependencies {
     compile("org.springframework.integration:spring-integration-feed:${springIntegrationVersion}")
     compile("org.springframework.integration:spring-integration-twitter:${springIntegrationVersion}")
     compile("org.springframework.integration:spring-integration-jdbc:${springIntegrationVersion}")
+    compile("org.springframework.integration:spring-integration-file:${springIntegrationVersion}")
     // aux deps
     compile('org.springframework.boot:spring-boot-starter-web')
     compileOnly('org.projectlombok:lombok')
