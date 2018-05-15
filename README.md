@@ -34,7 +34,7 @@ gradlew build
 ```
 gradlew bootRun
 ```
-or (after successful run)
+or (after successful build)
 ```
 java -jar build\libs\sprintegration-0.0.1-SNAPSHOT.jar
 ```
