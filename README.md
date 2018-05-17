@@ -1,5 +1,5 @@
 # Sprintegration
-Sample application for [Tinkoff Java Meetup](https://meetup.tinkoff.ru/events/java-meetup) (17th of May'18) to 
+Sample application for [Tinkoff Java Meetup](https://meetup.tinkoff.ru/events/java-meetup) (May 17, 2018) to 
 showcase some basic concepts of 
 [Spring Integration](https://docs.spring.io/spring-integration/docs/5.0.4.RELEASE/reference/htmlsingle) framework.
 
@@ -22,10 +22,10 @@ then, for every fetched blog post:
 ## Tips & tricks
 * H2 web console is available at [http://localhost:8080/h2-console](http://localhost:8080/h2-console).
 * There are 5 commits in repository that correspond to main steps described above. The application is fully runnable 
-on every one of them. Each commit is tagged with `Step_x` tag, where `x` is from 1 to 5. 
+on every one of them. Each commit is [tagged](https://github.com/Toparvion/sprintegration/tags) with `Step_x` tag, where `x` is from 1 to 5. 
  
 ## Build & run
-Navigate to repository dir. Then:
+[Clone](https://help.github.com/articles/which-remote-url-should-i-use/#cloning-with-https-urls-recommended) the repository. Then navigate to the cloned repository dir and execute:
 ##### To build
 ```
 gradlew build
